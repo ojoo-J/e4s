@@ -1,4 +1,11 @@
 import os
+import sys
+
+# 레포 루트를 path에 추가 (scripts/ 에서 실행해도 src 를 찾을 수 있도록)
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 import copy
 import cv2
 from argparse import ArgumentParser
@@ -332,27 +339,25 @@ def faceSwapping_pipeline(source, target, opts, save_dir, target_mask=None, need
 
     
 
-if __name__ == "__main__":
-    opts = SwapFacePipelineOptions().parse()
-    # ================= Pre-trained models initilization =========================
-    # TODO make a ckpts check in advance
-    # face_vid2vid 
+def load_pretrained_models(opts):
+    """사전학습 모델 로드. 배치 스크립트에서 재사용 가능."""
+    # face_vid2vid
     face_vid2vid_cfg = "./pretrained_ckpts/facevid2vid/vox-256.yaml"
     face_vid2vid_ckpt = "./pretrained_ckpts/facevid2vid/00000189-checkpoint.pth.tar"
     generator, kp_detector, he_estimator, estimate_jacobian = init_facevid2vid_pretrained_model(face_vid2vid_cfg, face_vid2vid_ckpt)
-    
-    # GPEN 
+
+    # GPEN
     gpen_model_params = {
-        "base_dir": "./pretrained_ckpts/gpen/",  # a sub-folder named <weights> should exist
+        "base_dir": "./pretrained_ckpts/gpen/",
         "in_size": 512,
-        "model": "GPEN-BFR-512", 
+        "model": "GPEN-BFR-512",
         "use_sr": True,
         "sr_model": "realesrnet",
         "sr_scale": 4,
         "channel_multiplier": 2,
         "narrow": 1,
     }
-    GPEN_model = init_gpen_pretrained_model(model_params = gpen_model_params)
+    GPEN_model = init_gpen_pretrained_model(model_params=gpen_model_params)
 
     # face parser
     if opts.faceParser_name == "default":
@@ -362,29 +367,29 @@ if __name__ == "__main__":
         faceParser_ckpt = "./pretrained_ckpts/face_parsing/segnext.small.best_mIoU_iter_140000.pth"
         config_path = "./pretrained_ckpts/face_parsing/segnext.small.512x512.celebamaskhq.160k.py"
     else:
-        raise NotImplementedError("Please choose a valid face parser," 
-                                  "the current supported models are [ default | segnext ], but %s is given."%opts.faceParser_name)
-        
+        raise NotImplementedError("face parser: [ default | segnext ], got %s" % opts.faceParser_name)
     faceParsing_model = init_faceParsing_pretrained_model(opts.faceParser_name, faceParser_ckpt, config_path)
-    print("Load pre-trained face parsing models success!") 
 
     # E4S model
     net = Net3(opts)
     net = net.to(opts.device)
     save_dict = torch.load(opts.checkpoint_path)
     net.load_state_dict(torch_utils.remove_module_prefix(save_dict["state_dict"], prefix="module."))
-    net.latent_avg = save_dict['latent_avg'].to(opts.device)
-    print("Load E4S pre-trained model success!") 
-    # ========================================================  
+    net.latent_avg = save_dict["latent_avg"].to(opts.device)
+    return net, faceParsing_model, GPEN_model, generator, kp_detector, he_estimator, estimate_jacobian
 
-    if len(opts.target_mask)!= 0:
+
+if __name__ == "__main__":
+    opts = SwapFacePipelineOptions().parse()
+    net, faceParsing_model, GPEN_model, generator, kp_detector, he_estimator, estimate_jacobian = load_pretrained_models(opts)
+    print("Load pre-trained models success!")
+
+    if len(opts.target_mask) != 0:
         target_mask = Image.open(opts.target_mask).convert("L")
         target_mask_seg12 = __celebAHQ_masks_to_faceParser_mask_detailed(target_mask)
     else:
         target_mask_seg12 = None
-    
-    # NOTICE !!!
-    # Please consider the `need_crop` parameter accordingly for your test case, default with well aligned faces
-    faceSwapping_pipeline(opts.source, opts.target, opts, save_dir=opts.output_dir, 
-                          target_mask = target_mask_seg12, need_crop = False, verbose = opts.verbose) 
+
+    faceSwapping_pipeline(opts.source, opts.target, opts, save_dir=opts.output_dir,
+                          target_mask=target_mask_seg12, need_crop=False, verbose=opts.verbose) 
     

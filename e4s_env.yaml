@@ -57,6 +57,7 @@ dependencies:
   - openh264=2.1.1=h4ff587b_0
   - openssl=1.1.1t=h7f8727e_0
   - pillow=9.4.0=py38h6a678d5_0
+  - ninja
   - pip=23.0.1=py38h06a4308_0
   - pycparser=2.21=pyhd3eb1b0_0
   - pyopenssl=23.0.0=py38h06a4308_0
@@ -106,4 +107,3 @@ dependencies:
     - tifffile==2023.3.21
     - tqdm==4.65.0
     - zipp==3.15.0
-prefix: /home/lza/miniconda3/envs/e4s
